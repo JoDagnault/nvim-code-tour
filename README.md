@@ -35,3 +35,15 @@ A `.tour` is JSON: `title`, `steps[]`. Each step has a markdown `description` an
 optionally `file` (relative to the directory containing `.tours/`), `line` (1-based) or
 `selection` (`start`/`end` with 1-based `line` and `character`), and `title`. A step
 without `file` is shown as a centered float. Other CodeTour fields are ignored.
+
+## Authoring with an agent
+
+`skills/SKILL.md` is a skill for Claude Code and Codex that tells the agent how to
+write a tour of what it just implemented. Symlink the directory:
+
+```sh
+ln -s ~/Projects/nvim-code-tour/skills ~/.claude/skills/code-tour
+ln -s ~/Projects/nvim-code-tour/skills ~/.codex/skills/code-tour
+```
+
+Then ask for a tour, or run `/code-tour`, after a change.
