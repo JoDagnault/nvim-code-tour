@@ -1,0 +1,24 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "How this plugin works",
+  "steps": [
+    {
+      "description": "### Welcome\n\nA content step: no file, just prose. Press `]n` for the next step, `[n` for the previous one, `<leader>tq` to stop."
+    },
+    {
+      "file": "lua/codetour/init.lua",
+      "line": 85,
+      "description": "### The spotlight\n\nThree extmarks: dim before the range, highlight the range, dim after it. Priority 200 so the dim beats treesitter."
+    },
+    {
+      "file": "lua/codetour/init.lua",
+      "selection": { "start": { "line": 162, "character": 1 }, "end": { "line": 204, "character": 4 } },
+      "description": "### Rendering a step\n\nA `selection` highlights a span instead of one line. Both `line` and `character` are 1-based in the file, 0-based in the extmark API."
+    },
+    {
+      "file": "plugin/codetour.lua",
+      "line": 6,
+      "description": "### Commands\n\n`:CodeTour` picks a tour from `.tours/`, or takes a path. Everything else is a thin wrapper around the module."
+    }
+  ]
+}
