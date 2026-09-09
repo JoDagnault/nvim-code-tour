@@ -94,16 +94,17 @@ local function description_lines(step)
 end
 
 -- Opens the description in a non-focusable float. With `code_win`, the float
--- is pinned to the bottom of that window so it never covers the spotlight;
--- without it (content steps) it is centered on the editor. Returns the float's
--- total height including borders.
-local function show_float(step, title, code_win)
+-- hangs right below the spotlight's last line (`first`/`last` are 0-based
+-- rows) and the window is scrolled so both fit. Without it (content steps)
+-- the float is centered on the editor.
+local function show_float(step, title, code_win, first, last)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, description_lines(step))
   vim.bo[buf].filetype = "markdown"
   vim.bo[buf].bufhidden = "wipe"
 
-  local width = math.min(config.width, vim.o.columns - 4)
+  local textoff = code_win and vim.fn.getwininfo(code_win)[1].textoff or 0
+  local width = math.min(config.width, (code_win and vim.api.nvim_win_get_width(code_win) or vim.o.columns) - textoff - 2)
   local win = vim.api.nvim_open_win(buf, false, {
     relative = "editor",
     row = 0,
@@ -122,10 +123,18 @@ local function show_float(step, title, code_win)
 
   local cfg = { width = width, height = height }
   if code_win then
+    local winh = vim.api.nvim_win_get_height(code_win)
+    local used = height + 2 -- borders
+    -- Center the spotlight in the rows the float leaves free, then hang the
+    -- float under its last line (clamped so it never leaves the window).
+    local free = math.max(0, winh - used - (last - first + 1))
+    vim.fn.winrestview({ topline = math.max(1, first + 1 - math.floor(free / 2)) })
+    local top = vim.fn.line("w0") - 1
+    local below = vim.api.nvim_win_text_height(code_win, { start_row = top, end_row = last }).all
     cfg.relative = "win"
     cfg.win = code_win
-    cfg.row = vim.api.nvim_win_get_height(code_win) - height - 2 -- 2 = borders
-    cfg.col = math.max(0, math.floor((vim.api.nvim_win_get_width(code_win) - width) / 2))
+    cfg.row = math.min(below, winh - used)
+    cfg.col = textoff
   else
     cfg.relative = "editor"
     cfg.row = math.floor((vim.o.lines - height) / 2)
@@ -133,7 +142,6 @@ local function show_float(step, title, code_win)
   end
   vim.api.nvim_win_set_config(win, cfg)
   state.win = win
-  return height + 2
 end
 
 local function show_virtual(buf, row, step, title)
@@ -209,11 +217,8 @@ local function render()
     vim.cmd("normal! zz")
     show_virtual(buf, sr, step, title)
   else
-    local win = vim.api.nvim_get_current_win()
-    local used = show_float(step, title, win)
-    -- Scroll so the spotlight sits mid-way through the region above the float.
-    local uncovered = vim.api.nvim_win_get_height(win) - used
-    vim.fn.winrestview({ topline = math.max(1, sr + 1 - math.floor(uncovered / 2)) })
+    local last = ec > 0 and er or er - 1 -- end is exclusive
+    show_float(step, title, vim.api.nvim_get_current_win(), sr, last)
   end
 end
 

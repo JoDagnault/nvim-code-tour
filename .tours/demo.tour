@@ -12,7 +12,7 @@
     },
     {
       "file": "lua/codetour/init.lua",
-      "selection": { "start": { "line": 172, "character": 1 }, "end": { "line": 218, "character": 4 } },
+      "selection": { "start": { "line": 180, "character": 1 }, "end": { "line": 223, "character": 4 } },
       "description": "### Rendering a step\n\nA `selection` highlights a span instead of one line. Both `line` and `character` are 1-based in the file, 0-based in the extmark API."
     },
     {
