@@ -47,8 +47,9 @@ Plain JSON. The player reads exactly these fields and ignores everything else:
   1-based. `character` is a column; `end` is exclusive.
 - A step with no `file` is a content step: prose only, shown centered. Use one
   for the intro or the closing trade-offs, not in the middle.
-- Start each description with a short `###` heading. The player shows it as the
-  step title.
+- Start each description with a `###` heading of at most 50 characters. The
+  player shows it in the float's title bar after a `Step n/m` counter and
+  truncates anything longer with an ellipsis.
 - Not supported: `pattern`, `directory`, `uri`, `commands`, `view`. Do not use them.
 
 ## Curation

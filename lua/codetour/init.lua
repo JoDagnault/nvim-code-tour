@@ -54,9 +54,20 @@ local function range_of(step)
   return line - 1, 0, line, 0
 end
 
-local function step_title(step, i, n)
-  local title = step.title or (step.description or ""):match("^#+%s*(.-)\n") or ""
-  return string.format(" Step %d/%d %s ", i, n, title)
+-- " Step i/n heading " fitted into `max` display cells. Neovim clips an
+-- over-wide border title from the left with a "<", which would eat the
+-- counter, so it is the heading that gets cut, marked with an ellipsis.
+local function step_title(step, i, n, max)
+  local heading = step.title or (step.description or ""):match("^#+%s*(.-)\n") or ""
+  local prefix = string.format(" Step %d/%d ", i, n)
+  local room = max - vim.fn.strdisplaywidth(prefix) - 1 -- trailing space
+  if vim.fn.strdisplaywidth(heading) > room then
+    while heading ~= "" and vim.fn.strdisplaywidth(heading .. "…") > room do
+      heading = vim.fn.strcharpart(heading, 0, vim.fn.strchars(heading) - 1)
+    end
+    heading = heading .. "…"
+  end
+  return prefix .. heading .. " "
 end
 
 local function clear_decorations()
@@ -97,7 +108,7 @@ end
 -- hangs right below the spotlight's last line (`first`/`last` are 0-based
 -- rows) and the window is scrolled so both fit. Without it (content steps)
 -- the float is centered on the editor.
-local function show_float(step, title, code_win, first, last)
+local function show_float(step, code_win, first, last)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, description_lines(step))
   vim.bo[buf].filetype = "markdown"
@@ -113,7 +124,7 @@ local function show_float(step, title, code_win, first, last)
     height = 1,
     style = "minimal",
     border = "rounded",
-    title = title,
+    title = step_title(step, state.index, #state.tour.steps, width),
     focusable = false,
   })
   vim.wo[win].wrap = true
@@ -144,9 +155,9 @@ local function show_float(step, title, code_win, first, last)
   state.win = win
 end
 
-local function show_virtual(buf, row, step, title)
+local function show_virtual(buf, row, step)
   local width = math.min(config.width, vim.o.columns - 8)
-  local virt = { { { title, "CodeTourTitle" } } }
+  local virt = { { { step_title(step, state.index, #state.tour.steps, width), "CodeTourTitle" } } }
   for _, l in ipairs(description_lines(step)) do
     -- naive word wrap
     local cur = ""
@@ -180,17 +191,16 @@ end
 local function render()
   clear_decorations()
   local step = state.tour.steps[state.index]
-  local title = step_title(step, state.index, #state.tour.steps)
   if not step.file then
     -- content or directory step: description only
-    show_float(step, title)
+    show_float(step)
     return
   end
 
   local path = vim.fs.joinpath(state.root, step.file)
   if vim.fn.filereadable(path) == 0 then
     vim.notify("codetour: missing file " .. path, vim.log.levels.WARN)
-    show_float(step, title)
+    show_float(step)
     return
   end
   -- Never open the file inside a sidebar (neo-tree, help, terminal...):
@@ -215,10 +225,10 @@ local function render()
 
   if config.mode == "virtual" then
     vim.cmd("normal! zz")
-    show_virtual(buf, sr, step, title)
+    show_virtual(buf, sr, step)
   else
     local last = ec > 0 and er or er - 1 -- end is exclusive
-    show_float(step, title, vim.api.nvim_get_current_win(), sr, last)
+    show_float(step, vim.api.nvim_get_current_win(), sr, last)
   end
 end
 
