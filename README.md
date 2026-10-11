@@ -13,12 +13,17 @@ Requires Neovim 0.10+. No dependencies.
   dir = "~/Projects/nvim-code-tour",
   cmd = { "CodeTour", "CodeTourNext", "CodeTourPrev", "CodeTourStop" },
   opts = {
-    mode = "float", -- or "virtual": description as virtual lines above the step
-    width = 72,
+    mode = "float", -- or "split": pane on the right; "virtual": lines above the step
+    width = 72, -- float and virtual text width
+    pane_width = 50, -- split mode
     keys = { next = "]n", prev = "[n", stop = "<leader>tq" },
   },
 }
 ```
+
+In `split` mode the description never covers the code: it lives in a pane on the right
+that stays open for the whole tour. `<C-w>l` into it to scroll a long description; `]n`
+and `[n` work from there too. The pane closes when the tour stops.
 
 Keys are mapped when a tour starts and removed when it stops. `]n` / `[n` are unused by Neovim and LazyVim.
 

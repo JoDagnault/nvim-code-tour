@@ -3,8 +3,9 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("codetour")
 local config = {
-  mode = "float", -- "float" | "virtual"
+  mode = "float", -- "float" | "split" | "virtual"
   width = 72,
+  pane_width = 50, -- split mode: width of the description pane
   keys = { next = "]n", prev = "[n", stop = "<leader>tq" },
 }
 
@@ -104,6 +105,15 @@ local function description_lines(step)
   return vim.split(step.description or "", "\n", { plain = true })
 end
 
+-- Scrolls `win` so rows `first`..`last` (0-based) are centered in its
+-- height minus `reserved` rows.
+local function center(win, first, last, reserved)
+  local free = math.max(0, vim.api.nvim_win_get_height(win) - reserved - (last - first + 1))
+  vim.api.nvim_win_call(win, function()
+    vim.fn.winrestview({ topline = math.max(1, first + 1 - math.floor(free / 2)) })
+  end)
+end
+
 -- Opens the description in a non-focusable float. With `code_win`, the float
 -- hangs right below the spotlight's last line (`first`/`last` are 0-based
 -- rows) and the window is scrolled so both fit. Without it (content steps)
@@ -138,8 +148,7 @@ local function show_float(step, code_win, first, last)
     local used = height + 2 -- borders
     -- Center the spotlight in the rows the float leaves free, then hang the
     -- float under its last line (clamped so it never leaves the window).
-    local free = math.max(0, winh - used - (last - first + 1))
-    vim.fn.winrestview({ topline = math.max(1, first + 1 - math.floor(free / 2)) })
+    center(code_win, first, last, used)
     local top = vim.fn.line("w0") - 1
     local below = vim.api.nvim_win_text_height(code_win, { start_row = top, end_row = last }).all
     cfg.relative = "win"
@@ -153,6 +162,44 @@ local function show_float(step, code_win, first, last)
   end
   vim.api.nvim_win_set_config(win, cfg)
   state.win = win
+end
+
+-- Shows the description in a pane on the right edge of the editor. The pane
+-- is opened on first use and kept for the whole tour; if it was closed, or
+-- something else was loaded into it, it is restored.
+local function show_pane(step)
+  if not (state.pane_buf and vim.api.nvim_buf_is_valid(state.pane_buf)) then
+    state.pane_buf = vim.api.nvim_create_buf(false, true)
+    vim.bo[state.pane_buf].filetype = "markdown"
+    vim.bo[state.pane_buf].bufhidden = "wipe"
+  end
+  local buf = state.pane_buf
+  if not (state.pane and vim.api.nvim_win_is_valid(state.pane)) then
+    state.pane = vim.api.nvim_open_win(buf, false, { split = "right", win = -1, width = config.pane_width })
+    local wo = vim.wo[state.pane]
+    wo.wrap, wo.linebreak, wo.winfixwidth = true, true, true
+    wo.number, wo.relativenumber, wo.cursorline, wo.list, wo.spell = false, false, false, false, false
+    wo.signcolumn, wo.foldcolumn, wo.statuscolumn, wo.colorcolumn = "no", "0", "", ""
+    wo.fillchars = "eob: "
+  elseif vim.api.nvim_win_get_buf(state.pane) ~= buf then
+    vim.api.nvim_win_set_buf(state.pane, buf)
+  end
+
+  vim.bo[buf].modifiable = true
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, description_lines(step))
+  vim.bo[buf].modifiable = false
+  local title = step_title(step, state.index, #state.tour.steps, vim.api.nvim_win_get_width(state.pane))
+  vim.wo[state.pane].winbar = "%#CodeTourTitle#" .. title:gsub("%%", "%%%%")
+  vim.api.nvim_win_set_cursor(state.pane, { 1, 0 })
+end
+
+-- Description without a code location: in the pane, else a centered float.
+local function show_text(step)
+  if config.mode == "split" then
+    show_pane(step)
+  else
+    show_float(step)
+  end
 end
 
 local function show_virtual(buf, row, step)
@@ -193,14 +240,14 @@ local function render()
   local step = state.tour.steps[state.index]
   if not step.file then
     -- content or directory step: description only
-    show_float(step)
+    show_text(step)
     return
   end
 
   local path = vim.fs.joinpath(state.root, step.file)
   if vim.fn.filereadable(path) == 0 then
     vim.notify("codetour: missing file " .. path, vim.log.levels.WARN)
-    show_float(step)
+    show_text(step)
     return
   end
   -- Never open the file inside a sidebar (neo-tree, help, terminal...):
@@ -211,6 +258,11 @@ local function render()
         vim.api.nvim_set_current_win(w)
         break
       end
+    end
+    -- Editing in place is fine from a dashboard, but never inside the pane.
+    if vim.api.nvim_get_current_win() == state.pane then
+      vim.cmd("topleft vnew")
+      vim.api.nvim_win_set_width(state.pane, config.pane_width)
     end
   end
   vim.cmd.edit(vim.fn.fnameescape(path))
@@ -223,12 +275,15 @@ local function render()
   vim.api.nvim_win_set_cursor(0, { sr + 1, 0 })
   spotlight(buf, sr, sc, er, ec)
 
+  local lr = ec > 0 and er or er - 1 -- last highlighted row; end is exclusive
   if config.mode == "virtual" then
     vim.cmd("normal! zz")
     show_virtual(buf, sr, step)
+  elseif config.mode == "split" then
+    show_pane(step) -- first, since opening it narrows the code window
+    center(0, sr, lr, 0)
   else
-    local last = ec > 0 and er or er - 1 -- end is exclusive
-    show_float(step, vim.api.nvim_get_current_win(), sr, last)
+    show_float(step, vim.api.nvim_get_current_win(), sr, lr)
   end
 end
 
@@ -284,6 +339,9 @@ function M.stop()
     return
   end
   clear_decorations()
+  if state.pane and vim.api.nvim_win_is_valid(state.pane) then
+    pcall(vim.api.nvim_win_close, state.pane, true) -- fails if it is the last window
+  end
   unmap_keys()
   vim.api.nvim_del_augroup_by_id(state.augroup)
   state = nil
