@@ -54,14 +54,19 @@ Plain JSON. The player reads exactly these fields and ignores everything else:
 
 ## Curation
 
-- **5 to 10 steps.** More means you are narrating the diff, not curating a tour.
+- **As many steps as clarity needs.** One idea per step, each building on the
+  previous one. Many short steps that build a clear picture beat a few dense
+  ones; never merge steps just to make the tour shorter. A decision, a
+  non-obvious constraint or a trade-off earns a step. Restating what the diff
+  already shows does not.
 - **Order by narrative**: entry point, then core logic, then edge cases and
   trade-offs. Never by file-tree order or the order you wrote the code in.
 - **Explain decisions, not edits.** "Why this and not the obvious alternative"
   earns a step. "Renamed a variable" does not. A reviewer already has `git diff`.
 - **Spotlight the interesting line**, not line 1 of the file. Use `selection`
   when the unit of interest is a block.
-- Keep each description to a heading and one to four sentences.
+- Keep each description short: a heading and one to three sentences. When a
+  step needs more, split it into steps that build on each other.
 
 ## The hard rule: never guess a line number
 
